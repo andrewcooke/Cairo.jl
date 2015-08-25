@@ -34,7 +34,7 @@ export
     # pattern
     pattern_create_radial, pattern_create_linear,
     pattern_add_color_stop_rgb, pattern_add_color_stop_rgba,
-    pattern_set_filter, pattern_set_extend,
+    pattern_set_filter, pattern_set_extend, pattern_get_surface,
 
     # drawing attribute manipulation
     set_antialias, get_antialias,
@@ -719,6 +719,29 @@ end
 function pattern_add_color_stop_rgba(pat::CairoPattern, offset::Real, red::Real, green::Real, blue::Real, alpha::Real)
     ccall((:cairo_pattern_add_color_stop_rgba, _jl_libcairo),
                     Void, (Ptr{Void},Float64,Float64,Float64,Float64,Float64),pat.ptr,offset,red,green,blue,alpha)
+end
+
+function pattern_get_surface(pat::CairoPattern)
+    ptrref = Ref{Ptr{Void}}()
+    status = ccall((:cairo_pattern_get_surface, _jl_libcairo), Cint,
+                   (Ptr{Void}, Ref{Ptr{Void}}), pat.ptr, ptrref)
+    if status == STATUS_PATTERN_TYPE_MISMATCH
+        error("Cannot get surface from a non-surface pattern.")
+    end
+    ptr = ptrref.x
+
+    ccall((:cairo_surface_reference, _jl_libcairo), Ptr{Void}, (Ptr{Void},), ptr)
+    typ = ccall((:cairo_surface_get_type, _jl_libcairo), Cint, (Ptr{Void},), ptr)
+
+    w = 0.0
+    h = 0.0
+    if typ == CAIRO_SURFACE_TYPE_IMAGE
+        w = ccall((:cairo_image_surface_get_width, _jl_libcairo),
+                  Int32, (Ptr{Void},), ptr)
+        h = ccall((:cairo_image_surface_get_height, _jl_libcairo),
+                  Int32, (Ptr{Void},), ptr)
+    end
+    return CairoSurface(ptrref.x, w, h)
 end
 
 function destroy(pat::CairoPattern)
